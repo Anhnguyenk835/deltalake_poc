@@ -1,0 +1,28 @@
+{
+  "name": "postgres-source-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "postgres-source",
+    "database.port": "5432",
+    "database.user": "source_user",
+    "database.password": "source_password",               
+    "database.dbname": "source_db",
+    "topic.prefix": "cdc",                      
+    "schema.include.list": "public",
+    "table.include.list": "public.customers,public.products,public.orders,public.order_items",
+    "plugin.name": "pgoutput",
+    "publication.name": "debezium_publication",
+    "slot.name": "debezium_slot",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "true",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+    "tombstones.on.delete": "true",
+    "snapshot.mode": "initial",
+    "decimal.handling.mode": "double",
+    "time.precision.mode": "connect",
+    "heartbeat.interval.ms": "10000",
+    "poll.interval.ms": "500"
+  }
+}

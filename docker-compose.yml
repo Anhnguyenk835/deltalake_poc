@@ -1,0 +1,239 @@
+services:
+  # =====================
+  # SOURCE DATABASE (PostgreSQL)
+  # =====================
+  postgres-source:
+    image: postgres:15
+    container_name: postgres-source
+    hostname: postgres-source
+    environment:
+      POSTGRES_USER: source_user
+      POSTGRES_PASSWORD: source_password
+      POSTGRES_DB: source_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./init-scripts/source-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_source_data:/var/lib/postgresql/data
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"                           #  Enable logical replication
+      - "-c"
+      - "max_wal_senders=4"                           #  Max concurrent replication connections          
+      - "-c"
+      - "max_replication_slots=4"                     #  Max replication slots
+    networks:
+      - cdc-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U source_user -d source_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =====================
+  # ZOOKEEPER (for Kafka)
+  # =====================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    hostname: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - cdc-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =====================
+  # KAFKA BROKER
+  # =====================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    hostname: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - cdc-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # =====================
+  # KAFKA CONNECT with DEBEZIUM
+  # =====================
+  debezium:
+    image: debezium/connect:2.5
+    container_name: debezium
+    hostname: debezium
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres-source:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_statuses
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      KEY_CONVERTER_SCHEMAS_ENABLE: "true"
+      VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
+    networks:
+      - cdc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # =====================
+  # TARGET DATABASE (PostgreSQL - Data Lake)
+  # =====================
+  postgres-datalake:
+    image: postgres:15
+    container_name: postgres-datalake
+    hostname: postgres-datalake
+    environment:
+      POSTGRES_USER: datalake_user
+      POSTGRES_PASSWORD: datalake_password
+      POSTGRES_DB: datalake_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./init-scripts/datalake-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_datalake_data:/var/lib/postgresql/data
+    networks:
+      - cdc-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U datalake_user -d datalake_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =====================
+  # TARGET DATABASE (PostgreSQL - Consumer/Target)
+  # =====================
+  postgres-target:
+    image: postgres:15
+    container_name: postgres-target
+    hostname: postgres-target
+    environment:
+      POSTGRES_USER: target_user
+      POSTGRES_PASSWORD: target_password
+      POSTGRES_DB: target_db
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./init-scripts/target-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_target_data:/var/lib/postgresql/data
+    networks:
+      - cdc-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U target_user -d target_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =====================
+  # KAFKA UI (Optional - for monitoring)
+  # =====================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    hostname: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: debezium
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://debezium:8083
+    networks:
+      - cdc-network
+
+  # =====================
+  # SPARK (Optional - for PySpark mode)
+  # =====================
+  # Using bde2020 spark images (free, actively maintained)
+  spark-master:
+    image: bde2020/spark-master:3.3.0-hadoop3.3
+    container_name: spark-master
+    hostname: spark-master
+    profiles: ["spark"]  # Only starts with: docker-compose --profile spark up
+    environment:
+      - INIT_DAEMON_STEP=setup_spark
+    ports:
+      - "7077:7077"
+      - "8081:8080"   # Spark master UI
+    volumes:
+      - ./deltalake:/opt/spark-data/deltalake
+    networks:
+      - cdc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  spark-worker:
+    image: bde2020/spark-worker:3.3.0-hadoop3.3
+    container_name: spark-worker
+    hostname: spark-worker
+    profiles: ["spark"]
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_WORKER_CORES=2
+    ports:
+      - "8082:8081"   # Spark worker UI
+    volumes:
+      - ./deltalake:/opt/spark-data/deltalake
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    networks:
+      - cdc-network
+
+networks:
+  cdc-network:
+    driver: bridge
+
+volumes:
+  postgres_source_data:
+  postgres_datalake_data:
+  postgres_target_data:
