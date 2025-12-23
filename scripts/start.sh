@@ -7,13 +7,23 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Parse arguments
 WITH_SPARK=false
-for arg in "$@"; do
-    case $arg in
-        --spark)
-            WITH_SPARK=true
-            shift
+WITH_RISINGWAVE=false
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --spark) WITH_SPARK=true ;;
+        --risingwave) WITH_RISINGWAVE=true ;;
+        -h|--help)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --spark       Include Spark cluster"
+            echo "  --risingwave  Include RisingWave streaming database with MinIO"
+            echo "  -h, --help    Show this help message"
+            exit 0
             ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
+    shift
 done
 
 echo "=========================================="
@@ -22,8 +32,11 @@ echo "=========================================="
 
 if [ "$WITH_SPARK" = true ]; then
     echo "  (Including Spark cluster)              "
-    echo "=========================================="
 fi
+if [ "$WITH_RISINGWAVE" = true ]; then
+    echo "  (Including RisingWave + MinIO)         "
+fi
+echo "=========================================="
 
 cd "$PROJECT_DIR"
 
@@ -59,18 +72,49 @@ docker-compose up -d kafka-ui
 # Step 5: Start Spark (optional)
 if [ "$WITH_SPARK" = true ]; then
     echo ""
-    echo "[5/6] Starting Spark cluster..."
+    echo "[5/7] Starting Spark cluster..."
     docker-compose --profile spark up -d
     echo "Waiting for Spark to be ready..."
     sleep 10
 else
     echo ""
-    echo "[5/6] Skipping Spark cluster (use --spark to enable)"
+    echo "[5/7] Skipping Spark cluster (use --spark to enable)"
 fi
 
-# Step 6: Register Debezium connector
+# Step 6: Start RisingWave (optional)
+if [ "$WITH_RISINGWAVE" = true ]; then
+    echo ""
+    echo "[6/7] Starting RisingWave with MinIO (SQLite backend)..."
+    docker-compose --profile risingwave up -d
+    echo "Waiting for RisingWave to be ready..."
+
+    # Wait for RisingWave to be healthy using TCP check
+    MAX_RETRIES=60
+    RETRY_COUNT=0
+    echo "Checking RisingWave health..."
+    while ! nc -z localhost 4566 2>/dev/null; do
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+            echo "Warning: RisingWave is taking longer than expected to start."
+            echo "Check logs with: docker-compose logs risingwave"
+            break
+        fi
+        echo "Waiting for RisingWave... ($RETRY_COUNT/$MAX_RETRIES)"
+        sleep 3
+    done
+
+    if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+        echo "RisingWave is ready!"
+        echo "MinIO buckets 'hummock001' and 'deltalake' are pre-created."
+    fi
+else
+    echo ""
+    echo "[6/7] Skipping RisingWave (use --risingwave to enable)"
+fi
+
+# Step 7: Register Debezium connector
 echo ""
-echo "[6/6] Registering PostgreSQL source connector..."
+echo "[7/7] Registering PostgreSQL source connector..."
 sleep 5
 
 # Check if Debezium is ready
@@ -114,10 +158,22 @@ if [ "$WITH_SPARK" = true ]; then
     echo "  - Spark Master:        http://localhost:8081"
     echo "  - Spark Worker:        http://localhost:8082"
 fi
+if [ "$WITH_RISINGWAVE" = true ]; then
+    echo "  - RisingWave:          localhost:4566 (psql -h localhost -p 4566 -U root -d dev)"
+    echo "  - RisingWave Dashboard: http://localhost:5691"
+    echo "  - MinIO Console:       http://localhost:9001 (admin/password)"
+    echo "  - MinIO S3 API:        http://localhost:9000"
+fi
+
 echo ""
 echo "Next steps:"
-echo "  1. Check connector status: ./scripts/check-connector.sh"
-echo "  2. Start Python consumer:  ./scripts/run-consumer.sh"
-echo "  3. Test CDC:               ./scripts/test-cdc.sh"
-echo "  4. Query Delta Lake:       ./scripts/query-delta.sh"
+echo "  1. Check connector status:        ./scripts/check-connector.sh"
+echo "  2. Start Python consumer:         ./scripts/run-consumer.sh"
+echo "  3. Start Spark connector:         ./scripts/run-consumer.sh --connector"
+if [ "$WITH_RISINGWAVE" = true ]; then
+    echo "  4. Initialize RisingWave:         psql -h localhost -p 4566 -U root -d dev -f consumer/risingwave-connector/init-risingwave.sql"
+    echo "  5. Test CDC:                      ./scripts/test-cdc.sh"
+else
+    echo "  4. Test CDC:                      ./scripts/test-cdc.sh"
+fi
 echo ""

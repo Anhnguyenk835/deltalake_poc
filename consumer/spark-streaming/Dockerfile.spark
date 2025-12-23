@@ -1,3 +1,4 @@
+# Dockerfile for Spark Structured Streaming CDC Pipeline
 # Consumes Kafka CDC events and writes to Delta Lake
 
 FROM python:3.11-slim-bookworm
@@ -22,19 +23,19 @@ ENV PATH="${SPARK_HOME}/bin:${PATH}"
 ENV PYSPARK_PYTHON=python3
 ENV PYSPARK_DRIVER_PYTHON=python3
 
-# install Spark
+# Download and install Spark
 RUN curl -fsSL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" \
     | tar -xz -C /opt \
     && mv /opt/spark-${SPARK_VERSION}-bin-hadoop3 ${SPARK_HOME}
 
-# app directory
+# Create app directory
 WORKDIR /app
 
-# python dependencies
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# papplication code
+# Copy application code
 COPY spark_streaming.py .
 COPY entrypoint.sh .
 
