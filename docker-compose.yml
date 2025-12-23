@@ -1,7 +1,5 @@
 services:
-  # =====================
   # SOURCE DATABASE (PostgreSQL)
-  # =====================
   postgres-source:
     image: postgres:15
     container_name: postgres-source
@@ -31,9 +29,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # =====================
   # ZOOKEEPER (for Kafka)
-  # =====================
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
@@ -51,9 +47,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # =====================
   # KAFKA BROKER
-  # =====================
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
@@ -82,9 +76,7 @@ services:
       timeout: 10s
       retries: 5
 
-  # =====================
   # KAFKA CONNECT with DEBEZIUM
-  # =====================
   debezium:
     image: debezium/connect:2.5
     container_name: debezium
@@ -117,9 +109,7 @@ services:
       timeout: 10s
       retries: 10
 
-  # =====================
   # TARGET DATABASE (PostgreSQL - Data Lake)
-  # =====================
   postgres-datalake:
     image: postgres:15
     container_name: postgres-datalake
@@ -141,9 +131,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # =====================
   # TARGET DATABASE (PostgreSQL - Consumer/Target)
-  # =====================
   postgres-target:
     image: postgres:15
     container_name: postgres-target
@@ -165,9 +153,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # =====================
   # KAFKA UI (Optional - for monitoring)
-  # =====================
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
@@ -186,9 +172,7 @@ services:
     networks:
       - cdc-network
 
-  # =====================
   # SPARK (Optional - for PySpark mode)
-  # =====================
   # Using bde2020 spark images (free, actively maintained)
   spark-master:
     image: bde2020/spark-master:3.3.0-hadoop3.3
@@ -229,12 +213,9 @@ services:
     networks:
       - cdc-network
 
-  # =====================
-  # SPARK STRUCTURED STREAMING (Kafka CDC -> Delta Lake)
-  # =====================
   spark-streaming:
     build:
-      context: ./python-consumer
+      context: ./consumer/spark-streaming
       dockerfile: Dockerfile.spark
     container_name: spark-streaming
     hostname: spark-streaming

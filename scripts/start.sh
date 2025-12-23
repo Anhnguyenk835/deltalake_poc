@@ -7,13 +7,12 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Parse arguments
 WITH_SPARK=false
-for arg in "$@"; do
-    case $arg in
-        --spark)
-            WITH_SPARK=true
-            shift
-            ;;
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --spark) WITH_SPARK=true ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
+    shift
 done
 
 echo "=========================================="
@@ -113,11 +112,15 @@ echo "  - Kafka UI:            http://localhost:8080"
 if [ "$WITH_SPARK" = true ]; then
     echo "  - Spark Master:        http://localhost:8081"
     echo "  - Spark Worker:        http://localhost:8082"
+if [ "$WITH_SPARK" = true ]; then
+    echo "  - Spark Master:        http://localhost:8081"
+    echo "  - Spark Worker:        http://localhost:8082"
 fi
+
 echo ""
 echo "Next steps:"
-echo "  1. Check connector status: ./scripts/check-connector.sh"
-echo "  2. Start Python consumer:  ./scripts/run-consumer.sh"
-echo "  3. Test CDC:               ./scripts/test-cdc.sh"
-echo "  4. Query Delta Lake:       ./scripts/query-delta.sh"
+echo "  1. Check connector status:        ./scripts/check-connector.sh"
+echo "  2. Start Python consumer:         ./scripts/run-consumer.sh"
+echo "  3. Start Spark connector:         ./scripts/run-consumer.sh --connector"
+echo "  4. Test CDC:                      ./scripts/test-cdc.sh"
 echo ""
