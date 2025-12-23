@@ -6,23 +6,23 @@
 │  (Source DB)    │────▶│  Debezium   │────▶│   Kafka     │
 │  Port: 5433     │     │  Connector  │     │  Port: 9092 │
 └─────────────────┘     └─────────────┘     └──────┬──────┘
-                                                    │
-                              ┌─────────────────────┼─────────────────────┐
-                              │                     │                     │
-                              ▼                     ▼                     ▼
-                    ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-                    │ Spark Streaming  │  │ Python Consumer  │  │  PostgreSQL      │
-                    │   (Connector)    │  │  (delta-rs)      │  │  (Data Lake)     │
-                    │   --connector    │  │   (default)      │  │  Port: 5434      │
-                    └────────┬─────────┘  └────────┬─────────┘  └──────────────────┘
-                             │                     │
-                             ▼                     ▼
-                    ┌──────────────────┐  ┌──────────────────┐
-                    │   Delta Lake     │  │  Delta Lake +    │
-                    │   (Parquet +     │  │  PostgreSQL      │
-                    │   Transaction    │  │  (Target DB)     │
-                    │   Log)           │  │  Port: 5435      │
-                    └──────────────────┘  └──────────────────┘
+                                                   │
+                              ┌───────────────────────────────────────────┐
+                              │                                           │
+                              ▼                                           ▼
+                    ┌──────────────────┐                        ┌──────────────────┐
+                    │ Spark Streaming  │                        │  PostgreSQL      │
+                    │   (Connector)    │                        │  (Data Lake)     │
+                    │   --connector    │                        │  Port: 5434      │
+                    └────────┬─────────┘                        └──────────────────┘
+                             │                     
+                             ▼                     
+                    ┌──────────────────┐  
+                    │                  │  
+                    │     DeltaLake    │  
+                    │                  │  
+                    │                  │  
+                    └──────────────────┘  
 ```
 
 # Project Structure
@@ -155,3 +155,5 @@ https://towardsdatascience.com/hands-on-introduction-to-delta-lake-with-py-spark
 https://medium.com/@diwasb54/delta-lake-deep-dive-the-complete-guide-to-modern-data-lake-architecture-2c5b5c4c1ecf
 
 https://www.youtube.com/watch?v=6VbRlQ0rL3I
+
+https://delta.io/blog/write-kafka-stream-to-delta-lake/
