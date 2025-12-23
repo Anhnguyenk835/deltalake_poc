@@ -1,12 +1,8 @@
-# CDC Pipeline: PostgreSQL to Delta Lake
-
-A proof-of-concept demonstrating real-time Change Data Capture (CDC) from PostgreSQL to Delta Lake using multiple streaming approaches.
-
-## Architecture
+# Architecture
 
 ![Architecture](public/arc.svg)
 
-## Project Structure
+# Project Structure
 
 ```
 deltalake_poc/
@@ -50,7 +46,7 @@ deltalake_poc/
 └── README.md                             # This file
 ```
 
-## Components
+# Components
 
 | Component | Description | Port |
 |-----------|-------------|------|
@@ -75,9 +71,9 @@ deltalake_poc/
 - `jq` for JSON processing (optional)
 - Java 8+ (required for PySpark mode)
 
-## Quick Start
+# Quick Start
 
-### 1. Start the Infrastructure
+## 1. Start the Infrastructure
 
 ```bash
 # Basic infrastructure (PostgreSQL, Kafka, Debezium)
@@ -90,9 +86,9 @@ deltalake_poc/
 ./scripts/start.sh --spark
 ```
 
-### 2. Choose a Consumer
+## 2. Choose a Consumer
 
-#### Option A: RisingWave (SQL-based streaming) - Recommended
+### Option A: RisingWave (SQL-based streaming) - Recommended
 
 ```bash
 # Start with RisingWave
@@ -110,7 +106,7 @@ Features:
 - Dashboard: http://localhost:5691
 - MinIO Console: http://localhost:9001 (admin/password)
 
-#### Option B: Spark Streaming
+### Option B: Spark Streaming
 
 ```bash
 ./scripts/run-consumer.sh --connector
@@ -122,7 +118,7 @@ Features:
 - Auto-recovery and checkpointing
 - Spark UI: http://localhost:4040
 
-#### Option C: Python Consumer
+### Option C: Python Consumer
 
 ```bash
 # With delta-rs (lightweight)
@@ -130,21 +126,6 @@ Features:
 
 # With PySpark (full SQL support)
 ./scripts/run-consumer.sh --spark
-```
-
-### 3. Test CDC
-
-```bash
-./scripts/test-cdc.sh
-```
-
-Or manually insert data:
-
-```bash
-psql -h localhost -p 5433 -U source_user -d source_db
-
-INSERT INTO customers (first_name, last_name, email, phone)
-VALUES ('John', 'Doe', 'john.doe@example.com', '555-0100');
 ```
 
 ## Technology Comparisons
@@ -198,7 +179,7 @@ Based on [RisingWave's comparison](https://risingwave.com/risingwave-vs-apache-s
 | **State Management** | In-memory with checkpoints to storage | Native state persisted in S3/object storage |
 | **Delta Lake Write** | Native (via delta-spark) | Requires pre-created tables (manually), append-only |
 | **Write Modes** | Append, Complete, Update + merge/upsert | Append-only |
-| **Storage Backend** | Local filesystem, S3, HDFS | S3-compatible only (MinIO, AWS S3, GCS, ...) |
+| **Storage Backend** | Local filesystem, S3, HDFS | S3-compatible only (MinIO, AWS S3, ...) |
 | **Resource Usage** | High (JVM, 2-4GB minimum) | Medium (~500MB-1GB) |
 | **Scaling** | Horizontal (add workers) | Horizontal (add compute nodes) |
 | **Query Interface** | SparkSQL, DataFrame API | PostgreSQL wire protocol (use psql) |
@@ -236,8 +217,8 @@ Based on [RisingWave's comparison](https://risingwave.com/risingwave-vs-apache-s
 
 ### Streaming Comparison
 - [RisingWave vs Apache Spark](https://risingwave.com/risingwave-vs-apache-spark/) - Official comparison
-- [Technical Comparison of Streaming Systems](https://ericfu.me/en/compare-streaming-systems/) - In-depth technical analysis
-- [Data Streaming Landscape 2024](https://kai-waehner.medium.com/the-data-streaming-landscape-2024-6e078b1959b5) - Industry overview
+- [Technical Comparison of Streaming Systems](https://ericfu.me/en/compare-streaming-systems/) - technical analysis
+- [Data Streaming Landscape 2024](https://kai-waehner.medium.com/the-data-streaming-landscape-2024-6e078b1959b5) 
 
 ### RisingWave
 - [RisingWave Delta Lake Sink](https://docs.risingwave.com/integrations/destinations/delta-lake) - Official documentation
@@ -246,3 +227,6 @@ Based on [RisingWave's comparison](https://risingwave.com/risingwave-vs-apache-s
 ### Tutorials
 - [Delta Lake with PySpark](https://www.datacamp.com/tutorial/delta-lake) - Hands-on introduction
 - [Kafka to Delta Lake](https://delta.io/blog/write-kafka-stream-to-delta-lake/) - Streaming pipeline guide
+
+### More - Kafka-delta-ingest
+- [Kafka-delta-ingest](https://brokenco.de/2025/10/30/kafka-delta-ingest-was-fun.html) - Considerably the use case that they drop 
