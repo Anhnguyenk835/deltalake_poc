@@ -1,0 +1,72 @@
+# Consumes Kafka CDC events and writes to Delta Lake
+
+FROM python:3.11-slim-bookworm
+
+# Install Java (required for Spark)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openjdk-17-jre-headless \
+    curl \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# Auto-detect and set JAVA_HOME
+RUN export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java)))) && \
+    echo "JAVA_HOME=${JAVA_HOME}" >> /etc/environment
+
+ENV PATH="/usr/bin:${PATH}"
+
+# Set Spark environment
+ENV SPARK_VERSION=3.5.0
+ENV SPARK_HOME=/opt/spark
+ENV PATH="${SPARK_HOME}/bin:${PATH}"
+ENV PYSPARK_PYTHON=python3
+ENV PYSPARK_DRIVER_PYTHON=python3
+
+# install Spark
+RUN curl -fsSL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" \
+    | tar -xz -C /opt \
+    && mv /opt/spark-${SPARK_VERSION}-bin-hadoop3 ${SPARK_HOME}
+
+# app directory
+WORKDIR /app
+
+# python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# papplication code
+COPY spark_streaming.py .
+COPY entrypoint.sh .
+
+# Make entrypoint executable
+RUN chmod +x entrypoint.sh
+
+# Copy shared modules (if needed)
+# COPY ../shared/*.py ./shared/
+
+# Create directories for data and checkpoints
+RUN mkdir -p /opt/spark-data/deltalake /opt/spark-data/checkpoints
+
+# Default environment variables
+ENV KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+ENV DELTA_LAKE_PATH=/opt/spark-data/deltalake
+ENV SPARK_CHECKPOINT_PATH=/opt/spark-data/checkpoints
+ENV SPARK_TRIGGER_INTERVAL="10 seconds"
+ENV SPARK_MAX_OFFSETS_PER_TRIGGER=10000
+ENV SPARK_STARTING_OFFSETS=earliest
+
+# Expose Spark UI port
+EXPOSE 4040
+
+# Set entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]
+
+# Run Spark Structured Streaming application
+CMD ["spark-submit", \
+     "--master", "local[*]", \
+     "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,io.delta:delta-spark_2.12:3.2.0", \
+     "--conf", "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension", \
+     "--conf", "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog", \
+     "--conf", "spark.driver.memory=2g", \
+     "--conf", "spark.executor.memory=2g", \
+     "spark_streaming.py"]
