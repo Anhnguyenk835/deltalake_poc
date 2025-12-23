@@ -141,7 +141,6 @@ class CDCConsumer:
 
             key = CDCKey.from_dict(key_data)
 
-            # Handle tombstone events (null value = delete)
             if not value_data:
                 logger.info(
                     "tombstone_event",

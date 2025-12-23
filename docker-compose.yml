@@ -229,6 +229,35 @@ services:
     networks:
       - cdc-network
 
+  # =====================
+  # SPARK STRUCTURED STREAMING (Kafka CDC -> Delta Lake)
+  # =====================
+  spark-streaming:
+    build:
+      context: ./python-consumer
+      dockerfile: Dockerfile.spark
+    container_name: spark-streaming
+    hostname: spark-streaming
+    profiles: ["spark-streaming"]  # Start with: docker-compose --profile spark-streaming up
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - DELTA_LAKE_PATH=/opt/spark-data/deltalake
+      - SPARK_CHECKPOINT_PATH=/opt/spark-data/checkpoints
+      - SPARK_TRIGGER_INTERVAL=10 seconds
+      - SPARK_MAX_OFFSETS_PER_TRIGGER=10000
+      - SPARK_STARTING_OFFSETS=earliest
+    ports:
+      - "4040:4040"   # Spark UI for streaming job
+    volumes:
+      - ./deltalake:/opt/spark-data/deltalake
+      - ./checkpoints:/opt/spark-data/checkpoints
+    networks:
+      - cdc-network
+    restart: unless-stopped
+
 networks:
   cdc-network:
     driver: bridge
