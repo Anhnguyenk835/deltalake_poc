@@ -1,6 +1,6 @@
 # Architecture
 
-![Architecture](public/arc.svg)
+![Architecture](public/arch.drawio.svg)
 
 # Project Structure
 
