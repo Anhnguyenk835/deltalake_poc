@@ -178,7 +178,6 @@ class DeltaLakeHandler:
         data["__processed_at"] = datetime.now()
 
         # Build schema from data, inferring types from non-None values
-        # CRITICAL: Replace None values with typed defaults BEFORE schema inference
         schema_fields = []
         cleaned_data = {}
         for key, value in data.items():

@@ -1,13 +1,3 @@
--- Creates Kafka tables, materialized views, and Delta Lake sinks
--- for streaming CDC data from PostgreSQL via RisingWave to MinIO.
---
--- IMPORTANT: Delta Lake tables must be pre-created before running this script!
--- Run: ./consumer/risingwave-connector/init-delta-tables.sh
---
--- Usage:
---   psql -h localhost -p 4566 -U root -d dev -f init-risingwave-deltalake.sql
--- ============================================
-
 -- Using CREATE TABLE with FORMAT DEBEZIUM as required in RisingWave v2.5+
 -- PRIMARY KEY is required for Debezium format to handle upserts
 
@@ -209,31 +199,3 @@ WITH (
     s3.region = 'us-east-1'
 );
 
-
--- ============================================
--- VERIFICATION QUERIES
--- ============================================
--- Run these after setup to verify the pipeline is working:
---
--- Check tables:
---   SELECT name FROM rw_tables WHERE name NOT LIKE 'rw_%';
---
--- Check materialized views:
---   SELECT name FROM rw_materialized_views;
---
--- Check sinks:
---   SELECT name FROM rw_sinks;
---
--- Query real-time CDC data:
---   SELECT * FROM customers LIMIT 10;
---   SELECT * FROM products LIMIT 10;
---   SELECT * FROM orders LIMIT 10;
---
--- Query analytics:
---   SELECT * FROM order_analytics;
---   SELECT * FROM customer_order_summary ORDER BY lifetime_value DESC LIMIT 10;
---   SELECT * FROM product_inventory WHERE stock_status != 'In Stock';
---
--- View Delta Lake data in MinIO Console:
---   http://localhost:9001 (admin/password)
---   Navigate to 'deltalake' bucket

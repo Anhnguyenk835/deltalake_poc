@@ -1,21 +1,8 @@
 #!/usr/bin/env python3
 """
-Create Delta Lake tables in MinIO for RisingWave sinks.
-
 RisingWave's Delta Lake sink requires pre-existing Delta tables with proper schema.
 This script creates empty Delta tables with the correct schema before RisingWave
 can sink data to them.
-
-Usage:
-    python create-delta-tables.py
-
-Requirements:
-    pip install deltalake pyarrow
-
-Environment variables (optional):
-    MINIO_ENDPOINT: MinIO endpoint (default: http://localhost:9000)
-    MINIO_ACCESS_KEY: MinIO access key (default: admin)
-    MINIO_SECRET_KEY: MinIO secret key (default: password)
 """
 
 import os
@@ -104,7 +91,7 @@ TABLES = {
 
 
 def create_delta_table(table_name: str, schema: pa.Schema) -> None:
-    """Create an empty Delta table with the given schema."""
+    """Create an empty Delta table with the given schema and Change Data Feed enabled."""
     table_path = f"s3://{BUCKET}/{table_name}"
 
     # Check if table already exists
@@ -115,14 +102,39 @@ def create_delta_table(table_name: str, schema: pa.Schema) -> None:
     except Exception:
         pass  # Table doesn't exist, create it
 
-    # Create empty Delta table with schema only (no data required)
+    # Create empty Delta table with schema and Change Data Feed enabled
+    # CDF allows tracking insert, update, delete changes with _change_type column
     DeltaTable.create(
         table_uri=table_path,
         schema=schema,
         storage_options=STORAGE_OPTIONS,
+        configuration={
+            "delta.enableChangeDataFeed": "true",
+        },
     )
 
-    print(f"  [CREATED] {table_name} - Empty Delta table created at {table_path}")
+    print(f"  [CREATED] {table_name} - Empty Delta table created at {table_path} (CDF enabled)")
+
+
+def enable_cdf_on_existing_table(table_name: str) -> bool:
+    """Enable Change Data Feed on an existing Delta table if not already enabled."""
+    table_path = f"s3://{BUCKET}/{table_name}"
+    try:
+        dt = DeltaTable(table_path, storage_options=STORAGE_OPTIONS)
+        metadata = dt.metadata()
+        cdf_enabled = metadata.configuration.get("delta.enableChangeDataFeed", "false")
+
+        if cdf_enabled == "true":
+            print(f"  [SKIP] {table_name} - CDF already enabled")
+            return True
+
+        # Enable CDF by altering table properties
+        dt.alter.set_table_properties({"delta.enableChangeDataFeed": "true"})
+        print(f"  [ENABLED] {table_name} - CDF has been enabled")
+        return True
+    except Exception as e:
+        print(f"  [ERROR] {table_name} - Could not enable CDF: {e}")
+        return False
 
 
 def verify_table(table_name: str) -> bool:
@@ -132,7 +144,10 @@ def verify_table(table_name: str) -> bool:
         dt = DeltaTable(table_path, storage_options=STORAGE_OPTIONS)
         version = dt.version()
         schema = dt.schema()
-        print(f"  [OK] {table_name} - version {version}, {len(schema.fields)} columns")
+        metadata = dt.metadata()
+        cdf_enabled = metadata.configuration.get("delta.enableChangeDataFeed", "false")
+        cdf_status = "CDF: ON" if cdf_enabled == "true" else "CDF: OFF"
+        print(f"  [OK] {table_name} - version {version}, {len(schema.fields)} columns, {cdf_status}")
         return True
     except Exception as e:
         print(f"  [ERROR] {table_name} - {e}")
@@ -140,19 +155,21 @@ def verify_table(table_name: str) -> bool:
 
 
 def main():
-    print("=" * 60)
-    print("  Delta Lake Table Creator for RisingWave Sinks")
-    print("=" * 60)
-    print(f"\nMinIO Endpoint: {MINIO_ENDPOINT}")
-    print(f"Bucket: {BUCKET}")
-    print(f"Tables to create: {len(TABLES)}")
-    print()
-
     # Create tables
     print("Creating Delta tables...")
     for table_name, schema in TABLES.items():
         try:
             create_delta_table(table_name, schema)
+        except Exception as e:
+            print(f"  [ERROR] {table_name} - {e}")
+
+    print()
+
+    # Enable CDF on existing tables that don't have it
+    print("Enabling Change Data Feed on existing tables...")
+    for table_name in TABLES:
+        try:
+            enable_cdf_on_existing_table(table_name)
         except Exception as e:
             print(f"  [ERROR] {table_name} - {e}")
 

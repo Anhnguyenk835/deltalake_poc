@@ -1,5 +1,3 @@
-"""Simple PySpark Delta Lake handler for CDC events."""
-
 from datetime import datetime
 from typing import Any, Optional
 
@@ -56,7 +54,6 @@ def create_spark_session(
 
 
 class SparkDeltaHandler:
-    """Simple PySpark Delta Lake handler."""
 
     def __init__(
         self,
